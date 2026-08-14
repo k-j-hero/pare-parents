@@ -7,6 +7,16 @@
 - 운영에서 디버그 모드와 상세 내부 오류 출력을 비활성화한다.
 - 필수 환경변수는 값이 아닌 이름과 목적만 문서화한다.
 
+## Pare 배포 경계
+
+- `web`: 공개 읽기 전용 사용자 서비스
+- `studio`: 인증된 편집·검토 서비스
+- `pipeline`: 수집, publication과 검색 인덱스 비동기 작업
+- PostgreSQL: authoring model, public read model과 outbox. 런타임별 별도 최소 권한 역할 사용
+- Object storage: quarantine, private source와 public asset을 권한 및 수명주기로 분리
+
+`web`, `studio`와 `pipeline`은 같은 코드를 공유할 수 있지만 자격증명, 네트워크 접근과 배포 단위를 분리한다. studio 또는 AI 제공자 장애가 공개된 기본 가이드 조회를 중단시키지 않아야 한다.
+
 ## 배포 전
 
 - [ ] 관련 자동 테스트와 빌드가 통과했다.
@@ -15,6 +25,10 @@
 - [ ] 비가역 데이터 변경 전 백업을 확인했다.
 - [ ] 변경 내용, 사용자 영향과 점검 방법을 정리했다.
 - [ ] 이전 버전으로 되돌리는 절차를 확인했다.
+- [ ] publication schema와 renderer 버전의 호환성을 확인했다.
+- [ ] web 자격증명으로 편집·검토 데이터에 접근할 수 없는지 확인했다.
+- [ ] outbox handler의 멱등성과 이전 이벤트 호환성을 확인했다.
+- [ ] AI 또는 외부 수집 제공자 장애 시 fallback을 검증했다.
 
 ## 배포 후
 
@@ -23,6 +37,9 @@
 - [ ] 데이터 정합성과 마이그레이션 결과를 확인했다.
 - [ ] 응답 시간, 자원 사용량과 외부 서비스 오류를 확인했다.
 - [ ] 문제가 생기면 중단·복구할 판정 기준이 있다.
+- [ ] active publication과 공개 read model의 일치 여부를 확인했다.
+- [ ] outbox backlog, 재시도와 dead-letter 상태를 확인했다.
+- [ ] 토큰, 비용, 캐시와 AI validator 실패율에 이상이 없는지 확인했다.
 
 ## 백업
 
@@ -30,6 +47,9 @@
 - 운영 시스템 장애와 분리된 위치에 복구 가능한 사본을 둔다.
 - 백업 성공 여부를 관찰하고 정기적으로 실제 복원 테스트를 수행한다.
 - 허용 가능한 데이터 손실량과 복구 시간을 제품 요구에 맞게 정한다.
+- authoring model, audit와 publication snapshot을 복원 범위에 포함한다.
+- 오브젝트 스토리지의 원문 라이선스·삭제 요구가 백업 사본에도 적용되게 한다.
+- public read model과 검색 인덱스는 publication snapshot에서 재생성 가능하게 한다.
 
 ## 장애 대응
 
@@ -48,3 +68,11 @@
 - 백업 위치 및 주기: 미정
 - 복원 절차: 미정
 - 되돌리기 절차: 미정
+
+## 기본 되돌리기 전략
+
+- 애플리케이션: 이전 검증 이미지 또는 배포 버전으로 복귀
+- publication: 데이터를 수정하지 않고 이전 승인 publication을 active로 재지정
+- read model·검색: active publication snapshot에서 재생성
+- AI 설정: 이전 model·prompt·policy configuration ID로 복귀
+- 마이그레이션: 이전 애플리케이션과 호환되는 expand/contract 방식을 우선하고 비가역 변경은 별도 백업과 복구 절차 필요

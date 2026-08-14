@@ -12,10 +12,12 @@
 ## 범위
 
 - 포함:
-  - Source, Evidence Claim, Evidence Assessment, Guide, Guide Version, Review와 Publication 관계
+  - Source, Source Version, Evidence Claim, Evidence Assessment, Guide, Guide Version, Review와 Publication 관계
   - 라이선스, 철회·정정, 적용 연령, 근거 등급과 재검토 기한
   - 초안에서 공개 및 보관까지의 상태 전이 규칙
   - 공개 가능한 가이드만 조회하는 데이터 접근 규칙
+  - 불변 publication snapshot, 공개 read model과 schema version
+  - publication request와 transactional outbox
   - 대표 상황 3개를 수용할 수 있는 검증용 데이터 구조
   - 마이그레이션, 테스트와 복구 계획
 - 제외:
@@ -32,7 +34,8 @@
 3. 근거를 참조하는 가이드 초안 버전을 만든다.
 4. 검토자가 승인, 수정 요청 또는 반려 상태를 기록한다.
 5. 승인 요건을 충족한 가이드 버전만 공개된다.
-6. 출처 철회 또는 검토 기한 경과 시 연결 가이드가 재검토 대상으로 식별된다.
+6. worker가 publication snapshot과 공개 read model을 멱등하게 생성한다.
+7. 출처 철회 또는 검토 기한 경과 시 연결 가이드가 재검토 대상으로 식별된다.
 
 ## 완료 조건
 
@@ -40,6 +43,9 @@
 - [ ] 식별자 또는 내용 해시를 이용한 출처 중복 방지 규칙이 있다.
 - [ ] 라이선스 미확인 자료의 원문 저장과 공개를 거부한다.
 - [ ] 미승인, 검토 기한 경과 또는 철회 근거에 의존한 가이드는 공개 조회 결과에 포함되지 않는다.
+- [ ] snapshot에는 guide, schema, renderer, safety policy와 content hash 버전이 고정된다.
+- [ ] 공개 요청과 outbox event가 하나의 transaction에서 생성된다.
+- [ ] 같은 이벤트가 중복 처리되어도 publication과 read model이 중복되거나 손상되지 않는다.
 - [ ] 상태 전이에서 허용되지 않은 순서와 중복 승인을 거부한다.
 - [ ] 작성자·검토자·변경 시점과 변경 사유를 감사할 수 있다.
 - [ ] 정상, 누락, 잘못된 상태 전이와 공개 권한에 대한 자동 테스트가 통과한다.
@@ -54,6 +60,8 @@
 - 승인 직후 핵심 출처가 철회되는 경우
 - 검토 기한과 시간대 경계
 - 동시에 같은 가이드 초안을 수정 또는 승인하는 경우
+- snapshot 생성 중 worker가 중단되거나 같은 outbox 이벤트를 다시 처리하는 경우
+- 이전 이벤트가 최신 publication보다 늦게 도착하는 경우
 
 ## 데이터·보안 영향
 
@@ -66,7 +74,7 @@
 ## 검증 계획
 
 - 단위 테스트: 필수 필드, 라이선스, 연령 범위, 상태 전이와 재검토 판정
-- 통합 테스트: 엔터티 관계, 트랜잭션, 동시 승인과 공개 전용 조회
+- 통합 테스트: 엔터티 관계, 동시 승인, outbox 재시도, publication rollback과 공개 전용 조회
 - 사용자 흐름 테스트: 출처 등록부터 승인된 가이드 공개까지의 최소 흐름
 - 수동 확인: 스키마가 대표 상황 3개와 출처 추적 화면 요구를 수용하는지 검토
 
